@@ -14,7 +14,7 @@ const ensureTable = async () => {
   )`).run();
 };
 
-const allowed = (request: Request) => request.headers.get("x-admin-pin") === (env.ADMIN_PIN || "2468");
+const allowed = (request: Request) => Boolean(env.ADMIN_PIN) && request.headers.get("x-admin-pin") === env.ADMIN_PIN;
 
 export async function GET(request: Request) {
   if (!allowed(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
