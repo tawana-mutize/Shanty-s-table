@@ -67,10 +67,11 @@ grant insert on public.orders to anon;
 grant select, update on public.orders to authenticated;
 
 drop policy if exists "Public can view available meals" on public.menu_items;
-create policy "Public can view available meals"
+drop policy if exists "Public can view menu" on public.menu_items;
+create policy "Public can view menu"
 on public.menu_items for select
 to anon
-using (available = true);
+using (true);
 
 drop policy if exists "Admins can view all meals" on public.menu_items;
 create policy "Admins can view all meals"

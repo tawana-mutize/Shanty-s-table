@@ -41,6 +41,9 @@ h1,h2,h3,p { margin-top:0; }
 .card-image img { width:100%;height:100%;object-fit:cover;transition:.5s; }
 .card:hover .card-image img { transform:scale(1.03); }
 .card-image span { position:absolute;top:15px;left:15px;background:#fff8f0;padding:8px 12px;border-radius:999px;font-size:11px;font-weight:700; }
+.sold-out-card .card-image img { filter:grayscale(.45);opacity:.72; }
+.card-image .sold-out-badge { background:#29221e;color:white; }
+.sold-out-card .card-bottom button { width:auto;padding:0 16px;background:#d8d0ca;color:#665d57;cursor:not-allowed;font-size:12px; }
 .card-body { padding:22px;min-height:245px;display:flex;flex-direction:column;justify-content:space-between; }
 .card .kind { text-transform:uppercase;letter-spacing:.13em;color:var(--deep);font-size:10px;font-weight:700;margin-bottom:8px; }
 .card h3 { font:400 25px/1.15 Georgia,serif;margin-bottom:10px; }
@@ -56,6 +59,10 @@ h1,h2,h3,p { margin-top:0; }
 footer { padding:35px 5vw;display:flex;align-items:center;gap:18px;background:#f3e3de; }
 footer img { width:65px;height:65px;border-radius:50%;object-fit:cover; }
 footer p { margin:0;line-height:1.5; } footer p:last-child { margin-left:auto;text-align:right;color:var(--muted);font-size:13px; } footer span { color:var(--deep);font-size:13px; }
+.owner-link { margin-top:10px;border:0;border-bottom:1px solid #8e8179;background:transparent;color:#776b65;padding:3px 0;font-size:12px;cursor:pointer; }
+.checkout-steps { display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 22px; }
+.checkout-steps p { margin:0;padding:10px 6px;background:#f5e4df;font-size:11px;line-height:1.25;text-align:center; }
+.checkout-steps b { display:block;font:700 18px Georgia,serif;margin-bottom:3px; }
 .overlay { position:fixed;inset:0;background:#19110e90;z-index:50;display:grid;place-items:center;padding:20px; }
 .overlay.side { justify-items:end;padding:0; }
 .modal,.cart { background:var(--cream);position:relative;box-shadow:0 25px 80px #0004; }
@@ -83,6 +90,7 @@ textarea { min-height:90px;resize:vertical; }
 .pin-box { max-width:430px;padding:30px;background:#f5e4df;border:1px solid #e6d3ca; }.pin-box p,.pin-box small { color:var(--muted);line-height:1.5; }.pin-box small { display:block;margin-top:20px; }
 .pin-box label { display:block;margin:16px 0 6px;font-weight:700; }.pin-box input { width:100%;margin-top:7px; }.pin-box .login-error { color:#9b2c2c;background:#fff4f2;padding:10px 12px;font-size:14px; }
 .admin-tools { display:flex;justify-content:space-between;margin:20px 0; }.admin-tools button { border:1px solid var(--ink);background:transparent;padding:9px 15px; }
+.admin-tools .add-meal-button { background:var(--ink);color:#fff;padding:12px 18px;font-weight:800; }
 .dashboard-tabs { display:flex;gap:8px;margin:25px 0;border-bottom:1px solid #e3d6cd; }
 .dashboard-tabs button { border:0;background:transparent;padding:13px 18px;color:var(--muted);font-weight:700; }
 .dashboard-tabs button.active { color:white;background:var(--ink); }
