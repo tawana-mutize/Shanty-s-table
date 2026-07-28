@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "./supabase";
 
 type MenuItem = { id: string; name: string; description: string; price: number; image: string; badge?: string; kind: "ready" | "build" | "snack"; available?: boolean };
 type CartItem = MenuItem & { qty: number; choices?: string[] };
@@ -39,7 +40,9 @@ export default function Home() {
   const [checkout, setCheckout] = useState(false);
   const [success, setSuccess] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
-  const [adminPin, setAdminPin] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminView, setAdminView] = useState<"orders" | "menu">("orders");
   const [editingMeal, setEditingMeal] = useState<MenuItem | null>(null);
@@ -64,18 +67,28 @@ export default function Home() {
   };
 
   const loadOrders = async () => {
-    const res = await fetch("/api/orders", { headers: { "x-admin-pin": adminPin } });
-    if (res.ok) { setOrders(await res.json()); setAdminUnlocked(true); }
-    else alert("That PIN is not correct.");
+    const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200);
+    if (error) return false;
+    setOrders((data || []).map((order) => ({ ...order, items: JSON.stringify(order.items) })) as Order[]);
+    setAdminUnlocked(true);
+    return true;
   };
 
   const loadMenu = async (includeUnavailable = false) => {
-    const res = await fetch("/api/menu", includeUnavailable ? { headers: { "x-admin-pin": adminPin } } : undefined);
-    if (res.ok) setMenu(await res.json());
+    let query = supabase.from("menu_items").select("*").order("sort_order").order("name");
+    if (!includeUnavailable) query = query.eq("available", true);
+    const { data } = await query;
+    if (data) setMenu(data as MenuItem[]);
   };
 
   useEffect(() => {
     loadMenu();
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) {
+        setAdminEmail(data.session.user.email || "");
+        await loadOrders();
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -95,38 +108,71 @@ export default function Home() {
       customer_name: form.get("name"), phone: form.get("phone"), collection_time: form.get("time"),
       notes: form.get("notes"), items: cart.map(({ name, qty, choices }) => ({ name, qty, choices })), total,
     };
-    const res = await fetch("/api/orders", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-    if (res.ok) {
-      const data = await res.json(); setSuccess(data.id); setCart([]); setCheckout(false); setCartOpen(false);
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from("orders").insert({ id, ...payload, status: "new" });
+    if (!error) {
+      setSuccess(id); setCart([]); setCheckout(false); setCartOpen(false);
     } else alert("We couldn't send your order. Please try again.");
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await fetch("/api/orders", { method: "PATCH", headers: { "content-type": "application/json", "x-admin-pin": adminPin }, body: JSON.stringify({ id, status }) });
+    await supabase.from("orders").update({ status }).eq("id", id);
     loadOrders();
+  };
+
+  const login = async () => {
+    setLoginError("");
+    const { error } = await supabase.auth.signInWithPassword({ email: adminEmail.trim(), password: adminPassword });
+    if (error || !(await loadOrders())) {
+      await supabase.auth.signOut();
+      setLoginError("The email or password is incorrect, or this account is not a Kitchen administrator.");
+      return;
+    }
+    setAdminPassword("");
+    await loadMenu(true);
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setAdminUnlocked(false);
+    setOrders([]);
+    setAdminPassword("");
+    await loadMenu();
   };
 
   const saveMeal = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingMeal) return;
     setSavingMeal(true);
-    const res = await fetch("/api/menu", {
-      method: editingMeal.id ? "PATCH" : "POST",
-      headers: { "content-type": "application/json", "x-admin-pin": adminPin },
-      body: JSON.stringify(editingMeal),
-    });
+    const isNew = !editingMeal.id;
+    const meal = {
+      ...editingMeal,
+      id: editingMeal.id || `${editingMeal.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 35)}-${crypto.randomUUID().slice(0, 6)}`,
+      badge: editingMeal.badge || "",
+      available: editingMeal.available !== false,
+      sort_order: isNew ? menu.length : undefined,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = isNew
+      ? await supabase.from("menu_items").insert(meal)
+      : await supabase.from("menu_items").update(meal).eq("id", meal.id);
     setSavingMeal(false);
-    if (res.ok) { setEditingMeal(null); await loadMenu(true); }
+    if (!error) { setEditingMeal(null); await loadMenu(true); }
     else alert("The meal could not be saved.");
   };
 
   const uploadMealImage = async (file?: File) => {
     if (!file || !editingMeal) return;
-    const data = new FormData();
-    data.append("image", file);
-    const res = await fetch("/api/images", { method: "POST", headers: { "x-admin-pin": adminPin }, body: data });
-    if (res.ok) {
-      const { url } = await res.json();
+    if (file.size > 8_000_000 || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      alert("Upload a JPG, PNG or WebP smaller than 8 MB.");
+      return;
+    }
+    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const key = `${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from("menu-images").upload(key, file, { contentType: file.type });
+    if (!error) {
+      const { data } = supabase.storage.from("menu-images").getPublicUrl(key);
+      const url = data.publicUrl;
       setEditingMeal({ ...editingMeal, image: url });
     } else alert("The image could not be uploaded.");
   };
@@ -176,11 +222,12 @@ export default function Home() {
       </> : <section className="admin">
         <p className="eyebrow">Shanty&apos;s dashboard</p>
         <h1>{adminView === "orders" ? "Today’s orders" : "Manage menu"}</h1>
-        {!adminUnlocked ? <div className="pin-box"><h2>Owner access</h2><p>Enter the kitchen PIN to manage orders and meals.</p><input type="password" value={adminPin} onChange={(e) => setAdminPin(e.target.value)} placeholder="Kitchen PIN" onKeyDown={(e) => e.key === "Enter" && loadOrders()} /><button className="primary" onClick={loadOrders}>Open dashboard</button><small>For Shanty&apos;s team only.</small></div>
+        {!adminUnlocked ? <div className="pin-box"><h2>Owner access</h2><p>Sign in to manage orders and meals.</p><label>Email address<input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="name@example.com" /></label><label>Password<input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Your Kitchen password" onKeyDown={(e) => e.key === "Enter" && login()} /></label>{loginError && <p className="login-error">{loginError}</p>}<button className="primary" onClick={login}>Open dashboard</button><small>For Shanty&apos;s team only.</small></div>
         : <>
           <div className="dashboard-tabs">
             <button className={adminView === "orders" ? "active" : ""} onClick={() => setAdminView("orders")}>Orders</button>
             <button className={adminView === "menu" ? "active" : ""} onClick={() => setAdminView("menu")}>Menu & availability</button>
+            <button onClick={logout}>Sign out</button>
           </div>
           {adminView === "orders" ? <>
             <div className="admin-tools"><span>{orders.length} orders</span><button onClick={loadOrders}>Refresh</button></div>
@@ -190,7 +237,7 @@ export default function Home() {
             <div className="menu-admin">{menu.map((meal) => <article key={meal.id} className={`meal-row ${meal.available === false ? "off" : ""}`}>
               <img src={meal.image} alt="" />
               <div><h3>{meal.name}</h3><p>{meal.description}</p><strong>{money(meal.price)}</strong></div>
-              <div className="meal-actions"><span className={meal.available === false ? "soldout" : "available"}>{meal.available === false ? "Sold out" : "Available"}</span><button onClick={() => setEditingMeal(meal)}>Edit</button><button onClick={async () => { await fetch("/api/menu", { method: "PATCH", headers: { "content-type": "application/json", "x-admin-pin": adminPin }, body: JSON.stringify({ ...meal, available: meal.available === false }) }); loadMenu(true); }}>{meal.available === false ? "Make available" : "Mark sold out"}</button></div>
+              <div className="meal-actions"><span className={meal.available === false ? "soldout" : "available"}>{meal.available === false ? "Sold out" : "Available"}</span><button onClick={() => setEditingMeal(meal)}>Edit</button><button onClick={async () => { await supabase.from("menu_items").update({ available: meal.available === false, updated_at: new Date().toISOString() }).eq("id", meal.id); loadMenu(true); }}>{meal.available === false ? "Make available" : "Mark sold out"}</button></div>
             </article>)}</div>
           </>}
         </>}

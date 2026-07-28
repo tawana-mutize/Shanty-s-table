@@ -81,6 +81,7 @@ textarea { min-height:90px;resize:vertical; }
 .success { text-align:center;padding:60px 20px; }.success>span { display:grid;place-items:center;width:70px;height:70px;border-radius:50%;background:#dbe6d5;color:#42663b;font-size:30px;margin:0 auto 20px; }.success .primary { margin:20px auto; }
 .admin { min-height:75vh;padding:80px 5vw;max-width:1300px;margin:auto; }.admin h1 { font-size:clamp(55px,7vw,90px); }
 .pin-box { max-width:430px;padding:30px;background:#f5e4df;border:1px solid #e6d3ca; }.pin-box p,.pin-box small { color:var(--muted);line-height:1.5; }.pin-box small { display:block;margin-top:20px; }
+.pin-box label { display:block;margin:16px 0 6px;font-weight:700; }.pin-box input { width:100%;margin-top:7px; }.pin-box .login-error { color:#9b2c2c;background:#fff4f2;padding:10px 12px;font-size:14px; }
 .admin-tools { display:flex;justify-content:space-between;margin:20px 0; }.admin-tools button { border:1px solid var(--ink);background:transparent;padding:9px 15px; }
 .dashboard-tabs { display:flex;gap:8px;margin:25px 0;border-bottom:1px solid #e3d6cd; }
 .dashboard-tabs button { border:0;background:transparent;padding:13px 18px;color:var(--muted);font-weight:700; }
