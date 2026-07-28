@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type MenuItem = { id: string; name: string; description: string; price: number; image: string; badge?: string; kind: "ready" | "build" | "snack" };
+type MenuItem = { id: string; name: string; description: string; price: number; image: string; badge?: string; kind: "ready" | "build" | "snack"; available?: boolean };
 type CartItem = MenuItem & { qty: number; choices?: string[] };
 type Order = { id: string; customer_name: string; phone: string; collection_time: string; notes: string; items: string; total: number; status: string; created_at: string };
 
-const menu: MenuItem[] = [
+const defaultMenu: MenuItem[] = [
   { id: "fries-chicken", name: "Fries & Chicken", description: "Sticky grilled chicken, seasoned fries & fresh salads", price: 25, image: "/food/fries-chicken.jpeg", badge: "Popular", kind: "ready" },
   { id: "fries-ribs", name: "Fries & Ribs", description: "Tender glazed ribs with golden seasoned fries", price: 35, image: "/food/fries-chicken.jpeg", kind: "ready" },
   { id: "fish-chips", name: "Fish & Chips", description: "Crispy spiced fish, chips, lemon & sweet chilli", price: 25, image: "/food/fish-chips.jpeg", kind: "ready" },
@@ -29,6 +29,7 @@ const money = (n: number) => `${n.toFixed(0)} PLN`;
 
 export default function Home() {
   const [tab, setTab] = useState<"menu" | "admin">("menu");
+  const [menu, setMenu] = useState<MenuItem[]>(defaultMenu);
   const [filter, setFilter] = useState<"all" | "ready" | "build" | "snack">("all");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [builder, setBuilder] = useState<MenuItem | null>(null);
@@ -40,6 +41,9 @@ export default function Home() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [adminPin, setAdminPin] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminView, setAdminView] = useState<"orders" | "menu">("orders");
+  const [editingMeal, setEditingMeal] = useState<MenuItem | null>(null);
+  const [savingMeal, setSavingMeal] = useState(false);
 
   const total = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.qty, 0), [cart]);
   const count = cart.reduce((sum, item) => sum + item.qty, 0);
@@ -54,7 +58,7 @@ export default function Home() {
   };
 
   const openItem = (item: MenuItem) => {
-    if (item.kind === "build") {
+    if (item.kind === "build" && choices[item.id]) {
       setBuilder(item); setProtein(choices[item.id].proteins[0]); setSide(choices[item.id].sides[0]);
     } else add(item);
   };
@@ -65,8 +69,19 @@ export default function Home() {
     else alert("That PIN is not correct.");
   };
 
+  const loadMenu = async (includeUnavailable = false) => {
+    const res = await fetch("/api/menu", includeUnavailable ? { headers: { "x-admin-pin": adminPin } } : undefined);
+    if (res.ok) setMenu(await res.json());
+  };
+
+  useEffect(() => {
+    loadMenu();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (adminUnlocked) {
+      loadMenu(true);
       const timer = setInterval(loadOrders, 15000);
       return () => clearInterval(timer);
     }
@@ -89,6 +104,31 @@ export default function Home() {
   const updateStatus = async (id: string, status: string) => {
     await fetch("/api/orders", { method: "PATCH", headers: { "content-type": "application/json", "x-admin-pin": adminPin }, body: JSON.stringify({ id, status }) });
     loadOrders();
+  };
+
+  const saveMeal = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingMeal) return;
+    setSavingMeal(true);
+    const res = await fetch("/api/menu", {
+      method: editingMeal.id ? "PATCH" : "POST",
+      headers: { "content-type": "application/json", "x-admin-pin": adminPin },
+      body: JSON.stringify(editingMeal),
+    });
+    setSavingMeal(false);
+    if (res.ok) { setEditingMeal(null); await loadMenu(true); }
+    else alert("The meal could not be saved.");
+  };
+
+  const uploadMealImage = async (file?: File) => {
+    if (!file || !editingMeal) return;
+    const data = new FormData();
+    data.append("image", file);
+    const res = await fetch("/api/images", { method: "POST", headers: { "x-admin-pin": adminPin }, body: data });
+    if (res.ok) {
+      const { url } = await res.json();
+      setEditingMeal({ ...editingMeal, image: url });
+    } else alert("The image could not be uploaded.");
   };
 
   return (
@@ -134,10 +174,40 @@ export default function Home() {
         </section>
         <section className="collection"><div><p className="eyebrow">Simple & easy</p><h2>Order now.<br /><i>Pay when you collect.</i></h2></div><div className="steps"><p><b>01</b><span><strong>Choose your food</strong>Pick a ready meal or build your own plate.</span></p><p><b>02</b><span><strong>Tell us when</strong>Choose a collection time that suits you.</span></p><p><b>03</b><span><strong>Collect & enjoy</strong>Pay in person and take home something delicious.</span></p></div></section>
       </> : <section className="admin">
-        <p className="eyebrow">Kitchen view</p><h1>Today&apos;s orders</h1>
-        {!adminUnlocked ? <div className="pin-box"><h2>Owner access</h2><p>Enter the kitchen PIN to see customer orders.</p><input type="password" value={adminPin} onChange={(e) => setAdminPin(e.target.value)} placeholder="Kitchen PIN" /><button className="primary" onClick={loadOrders}>Open order board</button><small>For Shanty&apos;s team only.</small></div>
-        : <><div className="admin-tools"><span>{orders.length} orders</span><button onClick={loadOrders}>Refresh</button></div><div className="orders">{orders.length === 0 && <div className="empty">No orders yet. They&apos;ll appear here automatically.</div>}{orders.map((o) => <article className="order" key={o.id}><div className="order-top"><strong>#{o.id.slice(-6).toUpperCase()}</strong><span className={`status ${o.status}`}>{o.status}</span></div><h3>{o.customer_name}</h3><p>{o.phone} · Collect: {o.collection_time}</p><ul>{JSON.parse(o.items).map((x: {name: string; qty: number; choices?: string[]}, i: number) => <li key={i}><b>{x.qty}×</b> {x.name} {x.choices?.length ? <small>— {x.choices.join(", ")}</small> : null}</li>)}</ul>{o.notes && <p className="note">“{o.notes}”</p>}<div className="order-total"><strong>{money(o.total)}</strong><select value={o.status} onChange={(e) => updateStatus(o.id, e.target.value)}><option>new</option><option>preparing</option><option>ready</option><option>collected</option></select></div></article>)}</div></>}
+        <p className="eyebrow">Shanty&apos;s dashboard</p>
+        <h1>{adminView === "orders" ? "Today’s orders" : "Manage menu"}</h1>
+        {!adminUnlocked ? <div className="pin-box"><h2>Owner access</h2><p>Enter the kitchen PIN to manage orders and meals.</p><input type="password" value={adminPin} onChange={(e) => setAdminPin(e.target.value)} placeholder="Kitchen PIN" onKeyDown={(e) => e.key === "Enter" && loadOrders()} /><button className="primary" onClick={loadOrders}>Open dashboard</button><small>For Shanty&apos;s team only.</small></div>
+        : <>
+          <div className="dashboard-tabs">
+            <button className={adminView === "orders" ? "active" : ""} onClick={() => setAdminView("orders")}>Orders</button>
+            <button className={adminView === "menu" ? "active" : ""} onClick={() => setAdminView("menu")}>Menu & availability</button>
+          </div>
+          {adminView === "orders" ? <>
+            <div className="admin-tools"><span>{orders.length} orders</span><button onClick={loadOrders}>Refresh</button></div>
+            <div className="orders">{orders.length === 0 && <div className="empty">No orders yet. They&apos;ll appear here automatically.</div>}{orders.map((o) => <article className="order" key={o.id}><div className="order-top"><strong>#{o.id.slice(-6).toUpperCase()}</strong><span className={`status ${o.status}`}>{o.status}</span></div><h3>{o.customer_name}</h3><p>{o.phone} · Collect: {o.collection_time}</p><ul>{JSON.parse(o.items).map((x: {name: string; qty: number; choices?: string[]}, i: number) => <li key={i}><b>{x.qty}×</b> {x.name} {x.choices?.length ? <small>— {x.choices.join(", ")}</small> : null}</li>)}</ul>{o.notes && <p className="note">“{o.notes}”</p>}<div className="order-total"><strong>{money(o.total)}</strong><select value={o.status} onChange={(e) => updateStatus(o.id, e.target.value)}><option>new</option><option>preparing</option><option>ready</option><option>collected</option></select></div></article>)}</div>
+          </> : <>
+            <div className="admin-tools"><span>{menu.filter((m) => m.available !== false).length} meals currently available</span><button onClick={() => setEditingMeal({ id: "", name: "", description: "", price: 0, image: "/food/fries-chicken.jpeg", kind: "ready", available: true })}>+ Add meal</button></div>
+            <div className="menu-admin">{menu.map((meal) => <article key={meal.id} className={`meal-row ${meal.available === false ? "off" : ""}`}>
+              <img src={meal.image} alt="" />
+              <div><h3>{meal.name}</h3><p>{meal.description}</p><strong>{money(meal.price)}</strong></div>
+              <div className="meal-actions"><span className={meal.available === false ? "soldout" : "available"}>{meal.available === false ? "Sold out" : "Available"}</span><button onClick={() => setEditingMeal(meal)}>Edit</button><button onClick={async () => { await fetch("/api/menu", { method: "PATCH", headers: { "content-type": "application/json", "x-admin-pin": adminPin }, body: JSON.stringify({ ...meal, available: meal.available === false }) }); loadMenu(true); }}>{meal.available === false ? "Make available" : "Mark sold out"}</button></div>
+            </article>)}</div>
+          </>}
+        </>}
       </section>}
+
+      {editingMeal && <div className="overlay" onClick={() => setEditingMeal(null)}><form className="modal meal-form" onSubmit={saveMeal} onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="close" onClick={() => setEditingMeal(null)}>×</button>
+        <p className="eyebrow">{editingMeal.id ? "Edit meal" : "Add a new meal"}</p><h2>{editingMeal.name || "New menu item"}</h2>
+        <label>Meal name<input required value={editingMeal.name} onChange={(e) => setEditingMeal({ ...editingMeal, name: e.target.value })} /></label>
+        <label>Description<textarea required value={editingMeal.description} onChange={(e) => setEditingMeal({ ...editingMeal, description: e.target.value })} /></label>
+        <div className="form-pair"><label>Price (PLN)<input required min="0" type="number" value={editingMeal.price} onChange={(e) => setEditingMeal({ ...editingMeal, price: Number(e.target.value) })} /></label><label>Category<select value={editingMeal.kind} onChange={(e) => setEditingMeal({ ...editingMeal, kind: e.target.value as MenuItem["kind"] })}><option value="ready">Ready meal</option><option value="build">Build a plate</option><option value="snack">Snack or drink</option></select></label></div>
+        <label>Badge (optional)<input value={editingMeal.badge || ""} placeholder="Popular, New…" onChange={(e) => setEditingMeal({ ...editingMeal, badge: e.target.value })} /></label>
+        <label>Food picture<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => uploadMealImage(e.target.files?.[0])} /></label>
+        <div className="image-preview"><img src={editingMeal.image} alt="Meal preview" /></div>
+        <label className="check"><input type="checkbox" checked={editingMeal.available !== false} onChange={(e) => setEditingMeal({ ...editingMeal, available: e.target.checked })} /> Available for customers to order</label>
+        <button className="primary wide" disabled={savingMeal}>{savingMeal ? "Saving…" : "Save meal"}</button>
+      </form></div>}
 
       {builder && <div className="overlay" onClick={() => setBuilder(null)}><div className="modal builder" onClick={(e) => e.stopPropagation()}><button className="close" onClick={() => setBuilder(null)}>×</button><img src={builder.image} alt="" /><p className="eyebrow">Build your plate</p><h2>{builder.name}</h2><label>Choose one protein<select value={protein} onChange={(e) => setProtein(e.target.value)}>{choices[builder.id].proteins.map((x) => <option key={x}>{x}</option>)}</select></label><label>Choose a side<select value={side} onChange={(e) => setSide(e.target.value)}>{choices[builder.id].sides.map((x) => <option key={x}>{x}</option>)}</select></label><button className="primary wide" onClick={() => add(builder, [protein, side].filter((x) => x !== "No side"))}>Add to bag · {money(builder.price)}</button></div></div>}
 
