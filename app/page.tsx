@@ -299,10 +299,21 @@ export default function Home() {
   const saveMeal = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingMeal) return;
+    const cleanedOptions = editingMeal.kind === "build"
+      ? {
+          proteins: (editingMeal.options?.proteins || []).map((option) => option.trim()).filter(Boolean),
+          sides: (editingMeal.options?.sides || []).map((option) => option.trim()).filter(Boolean),
+        }
+      : editingMeal.options;
+    if (editingMeal.kind === "build" && !cleanedOptions?.proteins.length) {
+      alert("Add at least one main choice before saving this meal.");
+      return;
+    }
     setSavingMeal(true);
     const isNew = !editingMeal.id;
     const meal = {
       ...editingMeal,
+      options: cleanedOptions,
       id: editingMeal.id || `${editingMeal.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 35)}-${crypto.randomUUID().slice(0, 6)}`,
       badge: editingMeal.badge || "",
       available: editingMeal.available !== false,
@@ -456,7 +467,7 @@ export default function Home() {
         <label>Meal name<input required value={editingMeal.name} onChange={(e) => setEditingMeal({ ...editingMeal, name: e.target.value })} /></label>
         <label>Description<textarea required value={editingMeal.description} onChange={(e) => setEditingMeal({ ...editingMeal, description: e.target.value })} /></label>
         <div className="form-pair"><label>Price (PLN)<input required min="0" type="number" value={editingMeal.price} onChange={(e) => setEditingMeal({ ...editingMeal, price: Number(e.target.value) })} /></label><label>Category<select value={editingMeal.kind} onChange={(e) => { const kind = e.target.value as MenuItem["kind"]; setEditingMeal({ ...editingMeal, kind, options: kind === "build" ? editingMeal.options || { proteins: [""], sides: ["No side", "Complimentary coleslaw"] } : editingMeal.options }); }}><option value="ready">Meal</option><option value="build">Build a plate</option><option value="snack">Snack or drink</option></select></label></div>
-        {editingMeal.kind === "build" && <div className="build-option-editor"><p>Build-your-own choices</p><label>Main choices — one per line<textarea required value={(editingMeal.options?.proteins || []).join("\n")} placeholder={"Beef stew\nChicken stew\nMushroom\nFish"} onChange={(e) => setEditingMeal({ ...editingMeal, options: { proteins: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean), sides: editingMeal.options?.sides || [] } })} /></label><label>Side choices — one per line<textarea value={(editingMeal.options?.sides || []).join("\n")} placeholder={"No side\nComplimentary coleslaw\nCabbage"} onChange={(e) => setEditingMeal({ ...editingMeal, options: { proteins: editingMeal.options?.proteins || [], sides: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) } })} /></label><small>These choices appear automatically when a customer selects this meal.</small></div>}
+        {editingMeal.kind === "build" && <div className="build-option-editor"><p>Build-your-own choices</p><label>Main choices — press Enter after each choice<textarea required rows={5} value={(editingMeal.options?.proteins || []).join("\n")} placeholder={"Beef stew\nChicken stew\nMushroom\nFish"} onChange={(e) => setEditingMeal({ ...editingMeal, options: { proteins: e.target.value.split("\n"), sides: editingMeal.options?.sides || [] } })} /></label><label>Side choices — press Enter after each choice<textarea rows={5} value={(editingMeal.options?.sides || []).join("\n")} placeholder={"No side\nComplimentary coleslaw\nCabbage"} onChange={(e) => setEditingMeal({ ...editingMeal, options: { proteins: editingMeal.options?.proteins || [], sides: e.target.value.split("\n") } })} /></label><small>Each line becomes a separate customer choice. Empty lines are removed when you save.</small></div>}
         <label>Badge (optional)<input value={editingMeal.badge || ""} placeholder="Popular, New…" onChange={(e) => setEditingMeal({ ...editingMeal, badge: e.target.value })} /></label>
         <label>Food picture<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => uploadMealImage(e.target.files?.[0])} /></label>
         <div className="image-preview"><img src={editingMeal.image} alt="Meal preview" /></div>
