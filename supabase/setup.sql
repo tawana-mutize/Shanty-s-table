@@ -33,6 +33,7 @@ create table if not exists public.menu_items (
   image text not null,
   badge text not null default '' check (char_length(badge) <= 40),
   kind text not null check (kind in ('ready', 'build', 'snack')),
+  options jsonb not null default '{"proteins":[],"sides":[]}'::jsonb,
   available boolean not null default true,
   sort_order integer not null default 0,
   updated_at timestamptz not null default now()
@@ -136,6 +137,16 @@ values
   ('samosas', 'Samosas', 'Crispy handmade savoury parcels', 10, '/food/samosas.jpeg', '', 'snack', true, 9),
   ('drinks', 'Soft Drinks', 'Cold assorted soft drinks', 10, '/food/fries-chicken.jpeg', '', 'snack', true, 10)
 on conflict (id) do nothing;
+
+update public.menu_items
+set options = '{"proteins":["Beef stew","Chicken stew","Savoury mince"],"sides":["No side","Complimentary coleslaw","Cabbage"]}'::jsonb
+where id = 'rice'
+  and options = '{"proteins":[],"sides":[]}'::jsonb;
+
+update public.menu_items
+set options = '{"proteins":["Beef stew","Chicken stew","Savoury mince"],"sides":["No side","Cabbage","Complimentary coleslaw"]}'::jsonb
+where id = 'sadza'
+  and options = '{"proteins":[],"sides":[]}'::jsonb;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
