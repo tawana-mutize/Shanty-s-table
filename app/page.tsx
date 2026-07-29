@@ -47,7 +47,7 @@ export default function Home() {
   const [adminPassword, setAdminPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [adminView, setAdminView] = useState<"orders" | "menu">("orders");
+  const [adminView, setAdminView] = useState<"orders" | "history" | "menu">("orders");
   const [editingMeal, setEditingMeal] = useState<MenuItem | null>(null);
   const [savingMeal, setSavingMeal] = useState(false);
 
@@ -333,6 +333,37 @@ export default function Home() {
     } else alert("The image could not be uploaded.");
   };
 
+  const activeOrders = orders.filter((order) => order.status !== "collected");
+  const historyOrders = orders.filter((order) => order.status === "collected");
+  const currentMonth = new Date();
+  const monthlyOrders = historyOrders.filter((order) => {
+    const date = new Date(order.created_at);
+    return date.getFullYear() === currentMonth.getFullYear() && date.getMonth() === currentMonth.getMonth();
+  });
+  const monthlyIncome = monthlyOrders.reduce((sum, order) => sum + Number(order.total), 0);
+  const popularMeals = Object.entries(historyOrders.reduce<Record<string, number>>((totals, order) => {
+    try {
+      (JSON.parse(order.items) as { name: string; qty: number }[]).forEach((item) => {
+        totals[item.name] = (totals[item.name] || 0) + item.qty;
+      });
+    } catch {}
+    return totals;
+  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const orderCard = (order: Order) => {
+    let items: { name: string; qty: number; choices?: string[] }[] = [];
+    try { items = JSON.parse(order.items); } catch {}
+    const kitchenReceipt: Receipt = { id: order.id, customer_name: order.customer_name, phone: order.phone, collection_time: order.collection_time, notes: order.notes, items, total: order.total, created_at: order.created_at, status: order.status };
+    return <article className="order" key={order.id}>
+      <div className="order-top"><strong>#{order.id.slice(-6).toUpperCase()}</strong><span className={`status ${order.status}`}>{order.status}</span></div>
+      <h3>{order.customer_name}</h3>
+      <p>{order.phone} · Collect: {order.collection_time}</p>
+      <ul>{items.map((item, index) => <li key={index}><b>{item.qty}×</b> {item.name} {item.choices?.length ? <small>— {item.choices.join(", ")}</small> : null}</li>)}</ul>
+      {order.notes && <p className="note">“{order.notes}”</p>}
+      <div className="order-total"><strong>{money(order.total)}</strong><div className="receipt-actions"><button className="receipt-button" onClick={() => printReceipt(kitchenReceipt)}>Print</button><button className="receipt-button" onClick={() => downloadReceipt(kitchenReceipt)}>Download</button></div><select value={order.status} onChange={(event) => updateStatus(order.id, event.target.value)}><option>new</option><option>preparing</option><option>ready</option><option>collected</option></select></div>
+    </article>;
+  };
+
   return (
     <main>
       <header>
@@ -387,17 +418,27 @@ export default function Home() {
       </> : tab === "kitchen" ? <section className="kitchen-story"><div><button className="page-back" onClick={() => setTab("menu")}>← Back to menu</button><p className="eyebrow">From Shanty&apos;s kitchen</p><h1>Something special is <i>cooking.</i></h1><p>Your order goes straight to Shanty&apos;s kitchen. Every meal is cooked fresh, packed with care and prepared for your chosen pickup period.</p><div className="cooking-status"><span>1</span><p><b>Order received</b>We&apos;ve got your choices.</p><span>2</span><p><b>Freshly prepared</b>Shanty cooks your meal with love.</p><span>3</span><p><b>Ready to collect</b>Pay when you pick it up.</p></div><button className="primary" onClick={() => setTab("menu")}>Choose a meal</button></div><img src="/food/jollof-chicken.jpeg" alt="A freshly prepared meal from Shanty's kitchen" /></section> : <section className="admin">
         <button className="page-back" onClick={() => setTab("menu")}>← Back to menu</button>
         <p className="eyebrow">Shanty&apos;s dashboard</p>
-        <h1>{adminView === "orders" ? "Today’s orders" : "Manage menu"}</h1>
+        <h1>{adminView === "orders" ? "Open orders" : adminView === "history" ? "Order history" : "Manage menu"}</h1>
         {!adminUnlocked ? <div className="pin-box"><h2>Owner access</h2><p>Sign in to manage orders and meals.</p><label>Email address<input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="name@example.com" /></label><label>Password<input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Your Kitchen password" onKeyDown={(e) => e.key === "Enter" && login()} /></label>{loginError && <p className="login-error">{loginError}</p>}<button className="primary" onClick={login}>Open dashboard</button><small>For Shanty&apos;s team only.</small></div>
         : <>
           <div className="dashboard-tabs">
-            <button className={adminView === "orders" ? "active" : ""} onClick={() => setAdminView("orders")}>Orders</button>
+            <button className={adminView === "orders" ? "active" : ""} onClick={() => setAdminView("orders")}>Orders <span>{activeOrders.length}</span></button>
+            <button className={adminView === "history" ? "active" : ""} onClick={() => setAdminView("history")}>History <span>{historyOrders.length}</span></button>
             <button className={adminView === "menu" ? "active" : ""} onClick={() => setAdminView("menu")}>Menu & availability</button>
             <button onClick={logout}>Sign out</button>
           </div>
           {adminView === "orders" ? <>
-            <div className="admin-tools"><span>{orders.length} orders</span><button onClick={loadOrders}>Refresh</button></div>
-            <div className="orders">{orders.length === 0 && <div className="empty">No orders yet. They&apos;ll appear here automatically.</div>}{orders.map((o) => { const kitchenReceipt = { id: o.id, customer_name: o.customer_name, phone: o.phone, collection_time: o.collection_time, notes: o.notes, items: JSON.parse(o.items), total: o.total, created_at: o.created_at, status: o.status }; return <article className="order" key={o.id}><div className="order-top"><strong>#{o.id.slice(-6).toUpperCase()}</strong><span className={`status ${o.status}`}>{o.status}</span></div><h3>{o.customer_name}</h3><p>{o.phone} · Collect: {o.collection_time}</p><ul>{kitchenReceipt.items.map((x: {name: string; qty: number; choices?: string[]}, i: number) => <li key={i}><b>{x.qty}×</b> {x.name} {x.choices?.length ? <small>— {x.choices.join(", ")}</small> : null}</li>)}</ul>{o.notes && <p className="note">“{o.notes}”</p>}<div className="order-total"><strong>{money(o.total)}</strong><div className="receipt-actions"><button className="receipt-button" onClick={() => printReceipt(kitchenReceipt)}>Print</button><button className="receipt-button" onClick={() => downloadReceipt(kitchenReceipt)}>Download</button></div><select value={o.status} onChange={(e) => updateStatus(o.id, e.target.value)}><option>new</option><option>preparing</option><option>ready</option><option>collected</option></select></div></article>; })}</div>
+            <div className="admin-tools"><span>{activeOrders.length} active {activeOrders.length === 1 ? "order" : "orders"}</span><button onClick={loadOrders}>Refresh</button></div>
+            <div className="orders">{activeOrders.length === 0 && <div className="empty">No open orders right now. Collected orders are safely stored in History.</div>}{activeOrders.map(orderCard)}</div>
+          </> : adminView === "history" ? <>
+            <section className="history-summary">
+              <article><span>Income this month</span><strong>{money(monthlyIncome)}</strong><small>From collected orders</small></article>
+              <article><span>Completed this month</span><strong>{monthlyOrders.length}</strong><small>{currentMonth.toLocaleString("en", { month: "long" })} orders</small></article>
+              <article><span>Most ordered</span><strong>{popularMeals[0]?.[0] || "No sales yet"}</strong><small>{popularMeals[0] ? `${popularMeals[0][1]} portions sold` : "Appears after collected orders"}</small></article>
+            </section>
+            {popularMeals.length > 0 && <section className="popular-meals"><div><p className="eyebrow">Sales overview</p><h2>Customer favourites</h2></div><ol>{popularMeals.map(([name, quantity], index) => <li key={name}><span>{index + 1}</span><b>{name}</b><strong>{quantity} sold</strong></li>)}</ol></section>}
+            <div className="admin-tools"><span>{historyOrders.length} collected {historyOrders.length === 1 ? "order" : "orders"}</span><button onClick={loadOrders}>Refresh</button></div>
+            <div className="orders history-orders">{historyOrders.length === 0 && <div className="empty">Collected orders will appear here automatically.</div>}{historyOrders.map(orderCard)}</div>
           </> : <>
             <div className="admin-tools"><span>{menu.filter((m) => m.available !== false).length} meals currently available</span><button className="add-meal-button" onClick={() => setEditingMeal({ id: "", name: "", description: "", price: 0, image: "/food/fries-chicken.jpeg", kind: "ready", available: true })}>+ Add a new meal</button></div>
             <div className="menu-admin">{menu.map((meal) => <article key={meal.id} className={`meal-row ${meal.available === false ? "off" : ""}`}>
