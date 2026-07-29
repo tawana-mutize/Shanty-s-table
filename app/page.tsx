@@ -226,11 +226,17 @@ export default function Home() {
             <p className="eyebrow">Made with love, served with joy</p>
             <h1>Home on<br />a <i>plate.</i></h1>
             <p>Comfort food, cooked from the heart. Pick a favourite or build your perfect plate—ready for collection.</p>
-            <button className="primary" onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Explore the menu <span>↓</span></button>
+            <div className="hero-actions">
+              <button className="primary" onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Explore the menu <span>↓</span></button>
+              <a className="instagram-link" href="https://www.instagram.com/shantys_table?igsh=cHM5ZmRkNm94ajls&utm_source=qr" target="_blank" rel="noreferrer" aria-label="Follow Shanty's Table on Instagram">
+                <span className="instagram-icon">◎</span>
+                <span><small>Follow for specials &amp; updates</small><b>@shantys_table</b></span>
+                <i>↗</i>
+              </a>
+            </div>
             <div className="hero-notes"><span>♡ Freshly made</span><span>◷ Pay on collection</span></div>
-            <div className="hero-steps"><p><b>01</b><span>Choose your food</span></p><p><b>02</b><span>Choose afternoon or late evening</span></p><p><b>03</b><span>Collect, pay &amp; enjoy</span></p></div>
           </div>
-          <div className="hero-image"><img src="/food/fries-chicken.jpeg" alt="Fries, grilled chicken and salads" /><span className="seal">SHANTY&apos;S<br /><b>TABLE</b></span></div>
+          <div className="hero-image"><img src="/food/fries-chicken.jpeg" alt="Fries, grilled chicken and salads" /><span className="seal">SHANTY&apos;S<br /><b>TABLE</b></span><span className="hero-special">Fresh today<br /><b>Made by Shanty</b></span></div>
         </section>
 
         <section className="menu-section" id="menu">
