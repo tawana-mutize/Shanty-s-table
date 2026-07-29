@@ -123,7 +123,6 @@ textarea { min-height:90px;resize:vertical; }
 .cooking-status { display:grid;grid-template-columns:32px 1fr;gap:10px 14px;margin:25px 0 30px;max-width:520px; }
 .cooking-status>span { width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--deep);color:#fff;font-weight:800;font-size:11px; }
 .cooking-status p { margin:0 0 10px;color:var(--muted);font-size:13px;line-height:1.4; }.cooking-status b { display:block;color:var(--ink);font:400 20px Georgia,serif;margin-bottom:3px; }
-.owner-card-link { width:max-content;border:0;background:transparent;border-bottom:1px solid var(--deep);color:var(--deep);padding:8px 0;margin-top:18px;font-weight:700; }
 .receipt { padding-bottom:20px; }.receipt-success { display:flex;align-items:center;gap:14px;background:#e6f0e1;padding:16px;margin-bottom:18px; }
 .receipt-success>span { width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#52734a;color:white;font-size:20px; }.receipt-success h3 { font:400 21px Georgia,serif;margin:0 0 4px; }.receipt-success p { margin:0;color:#52734a;font-size:12px; }
 .receipt-number { display:flex;justify-content:space-between;align-items:center;border-block:1px dashed #cdbfb6;padding:14px 0;margin-bottom:12px; }.receipt-number span,.receipt-details span { color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em; }.receipt-number b { font-size:20px; }
