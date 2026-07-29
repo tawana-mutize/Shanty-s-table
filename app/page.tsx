@@ -128,13 +128,137 @@ export default function Home() {
     </style></head><body><article class="receipt"><header class="brand"><img src="${logo}" alt="Shanty's Table logo"><h1>Shanty&apos;s Table</h1><p>Made with love, served with joy.</p></header><div class="number"><span>Kitchen receipt</span><b>#${number}</b></div><section class="details"><p><span>Customer</span><b>${receiptSafe(value.customer_name)}</b></p><p><span>Phone</span><b>${receiptSafe(value.phone)}</b></p><p><span>Collection</span><b>${receiptSafe(value.collection_time)}</b></p><p><span>Ordered</span><b>${receiptSafe(new Date(value.created_at).toLocaleString())}</b></p></section><ul>${items}</ul>${value.notes ? `<p class="notes"><b>Order note</b><br>${receiptSafe(value.notes)}</p>` : ""}<div class="total"><span>ORDER TOTAL</span><b>${money(value.total)}</b></div><p class="payment">PAY WHEN YOU COLLECT</p><div class="checks"><span>Preparing</span><span>Ready</span><span>Collected</span></div><footer class="thanks">Thank you for choosing Shanty&apos;s Table!</footer></article><button class="print" onclick="window.print()">Print this receipt</button></body></html>`;
   };
 
-  const downloadReceipt = (value: Receipt) => {
-    const url = URL.createObjectURL(new Blob([receiptDocument(value)], { type: "text/html;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `shantys-table-receipt-${value.id.slice(-6).toUpperCase()}.html`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const downloadReceipt = async (value: Receipt) => {
+    const width = 900;
+    const height = 1050 + value.items.length * 100 + (value.notes ? 110 : 0);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const center = width / 2;
+    const number = value.id.slice(-6).toUpperCase();
+    const line = (y: number) => {
+      context.save();
+      context.strokeStyle = "#cdbdb4";
+      context.setLineDash([12, 10]);
+      context.beginPath();
+      context.moveTo(65, y);
+      context.lineTo(width - 65, y);
+      context.stroke();
+      context.restore();
+    };
+    const text = (copy: string, x: number, y: number, font: string, color = "#27201d", align: CanvasTextAlign = "left") => {
+      context.font = font;
+      context.fillStyle = color;
+      context.textAlign = align;
+      context.fillText(copy, x, y);
+    };
+    const wrapped = (copy: string, x: number, y: number, maxWidth: number, lineHeight: number, font: string, color = "#27201d") => {
+      context.font = font;
+      context.fillStyle = color;
+      context.textAlign = "left";
+      const words = copy.split(/\s+/);
+      let row = "";
+      let currentY = y;
+      words.forEach((word) => {
+        const test = `${row}${word} `;
+        if (context.measureText(test).width > maxWidth && row) {
+          context.fillText(row.trim(), x, currentY);
+          row = `${word} `;
+          currentY += lineHeight;
+        } else row = test;
+      });
+      if (row) context.fillText(row.trim(), x, currentY);
+      return currentY;
+    };
+
+    context.fillStyle = "#f3e7e2";
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = "#fffaf4";
+    context.fillRect(28, 28, width - 56, height - 56);
+    context.fillStyle = "#f4b9b4";
+    context.fillRect(28, 28, width - 56, 18);
+
+    const logo = new Image();
+    logo.src = "/logo.jpeg";
+    await logo.decode();
+    context.save();
+    context.beginPath();
+    context.arc(center, 140, 82, 0, Math.PI * 2);
+    context.clip();
+    context.drawImage(logo, center - 82, 58, 164, 164);
+    context.restore();
+    context.strokeStyle = "#c7974d";
+    context.lineWidth = 3;
+    context.beginPath();
+    context.arc(center, 140, 84, 0, Math.PI * 2);
+    context.stroke();
+    text("Shanty's Table", center, 270, "48px Georgia", "#27201d", "center");
+    text("MADE WITH LOVE, SERVED WITH JOY", center, 310, "bold 15px Arial", "#b95045", "center");
+    line(350);
+
+    text("CUSTOMER RECEIPT", 65, 405, "bold 17px Arial", "#b95045");
+    text(`#${number}`, width - 65, 410, "bold 34px Arial", "#27201d", "right");
+    text(new Date(value.created_at).toLocaleString(), 65, 448, "17px Arial", "#776c66");
+
+    let y = 515;
+    const detail = (label: string, detailValue: string) => {
+      text(label.toUpperCase(), 65, y, "bold 15px Arial", "#776c66");
+      text(detailValue, width - 65, y, "bold 21px Arial", "#27201d", "right");
+      y += 45;
+    };
+    detail("Customer", value.customer_name);
+    detail("Phone", value.phone);
+    detail("Collection", value.collection_time);
+    line(y + 5);
+    y += 60;
+
+    text("YOUR ORDER", 65, y, "bold 17px Arial", "#b95045");
+    y += 48;
+    value.items.forEach((item) => {
+      text(`${item.qty}×`, 65, y, "bold 24px Arial", "#27201d");
+      text(item.name, 125, y, "bold 24px Arial", "#27201d");
+      if (item.choices?.length) {
+        y = wrapped(item.choices.join(" · "), 125, y + 31, 650, 27, "18px Arial", "#776c66");
+      }
+      y += 55;
+      context.strokeStyle = "#eadfd8";
+      context.beginPath();
+      context.moveTo(65, y);
+      context.lineTo(width - 65, y);
+      context.stroke();
+      y += 35;
+    });
+
+    if (value.notes) {
+      context.fillStyle = "#f8e7e2";
+      context.fillRect(65, y, width - 130, 95);
+      text("ORDER NOTE", 88, y + 29, "bold 14px Arial", "#b95045");
+      wrapped(value.notes, 88, y + 61, width - 176, 24, "17px Arial", "#27201d");
+      y += 125;
+    }
+
+    text("TOTAL — PAY ON COLLECTION", 65, y + 28, "bold 16px Arial", "#776c66");
+    text(money(value.total), width - 65, y + 36, "bold 38px Georgia", "#27201d", "right");
+    y += 78;
+    context.fillStyle = "#27201d";
+    context.fillRect(65, y, width - 130, 62);
+    text("SHOW THIS RECEIPT WHEN YOU COLLECT", center, y + 39, "bold 17px Arial", "#ffffff", "center");
+    y += 115;
+    line(y);
+    text("Thank you for choosing Shanty's Table!", center, y + 58, "italic 24px Georgia", "#b95045", "center");
+    text("Your receipt number matches the kitchen order.", center, y + 94, "16px Arial", "#776c66", "center");
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `shantys-table-receipt-${number}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, "image/png");
   };
 
   const printReceipt = (value: Receipt) => {
